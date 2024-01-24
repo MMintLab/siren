@@ -4,7 +4,8 @@
 # Enable import from parent package
 import sys
 import os
-sys.path.append( os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) ) )
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import dataio, meta_modules, utils, training, loss_functions, modules
 
@@ -29,7 +30,7 @@ p.add_argument('--epochs_til_ckpt', type=int, default=25,
 p.add_argument('--steps_til_summary', type=int, default=100,
                help='Time interval in seconds until tensorboard summary is saved.')
 
-p.add_argument('--dataset', type=str, choices=['camera','bsd500'], default='camera',
+p.add_argument('--dataset', type=str, choices=['camera', 'bsd500'], default='camera',
                help='Dataset: choices=[camera,bsd500].')
 p.add_argument('--model_type', type=str, default='sine',
                help='Options are "sine" (all sine activations) and "mixed" (first layer sine, other layers tanh)')
@@ -49,7 +50,8 @@ elif opt.dataset == 'bsd500':
 dataloader = DataLoader(coord_dataset, shuffle=True, batch_size=opt.batch_size, pin_memory=True, num_workers=0)
 
 # Define the model.
-if opt.model_type == 'sine' or opt.model_type == 'relu' or opt.model_type == 'tanh' or opt.model_type == 'softplus':
+if (opt.model_type == 'sine' or opt.model_type == 'relu' or opt.model_type == 'tanh' or opt.model_type == 'softplus'
+        or opt.model_type == 'resine'):
     model = modules.SingleBVPNet(type=opt.model_type, mode='mlp', sidelength=(256, 256))
 elif opt.model_type == 'rbf' or opt.model_type == 'nerf':
     model = modules.SingleBVPNet(type='relu', mode=opt.model_type, sidelength=(256, 256))

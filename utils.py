@@ -451,7 +451,8 @@ def write_gradients_summary(model, model_input, gt, model_output, writer, total_
                      global_step=total_steps)
 
     # Plot pred image
-    writer.add_image(prefix + 'pred_img', make_grid(pred_img, scale_each=False, normalize=True),
+    pred_img_clamp = dataio.rescale_img(pred_img, mode='clamp')
+    writer.add_image(prefix + 'pred_img', make_grid(pred_img_clamp, scale_each=False, normalize=False),
                      global_step=total_steps)
 
     # Plot pred gradient

@@ -47,15 +47,16 @@ class FCBlock(MetaModule):
 
         # Dictionary that maps nonlinearity name to the respective function, initialization, and, if applicable,
         # special first-layer initialization scheme
-        nls_and_inits = {'sine':(Sine(), sine_init, first_layer_sine_init),
-                         'relu':(nn.ReLU(inplace=True), init_weights_normal, None),
-                         'sigmoid':(nn.Sigmoid(), init_weights_xavier, None),
-                         'tanh':(nn.Tanh(), init_weights_xavier, None),
-                         'selu':(nn.SELU(inplace=True), init_weights_selu, None),
-                         'softplus':(nn.Softplus(), init_weights_normal, None),
-                         'elu':(nn.ELU(inplace=True), init_weights_elu, None)}
+        nls_and_inits = {'sine': (None, Sine(), sine_init, first_layer_sine_init),
+                         'relu': (None, nn.ReLU(inplace=True), init_weights_normal, None),
+                         'sigmoid': (None, nn.Sigmoid(), init_weights_xavier, None),
+                         'tanh': (None, nn.Tanh(), init_weights_xavier, None),
+                         'selu': (None, nn.SELU(inplace=True), init_weights_selu, None),
+                         'softplus': (None, nn.Softplus(), init_weights_normal, None),
+                         'elu': (None, nn.ELU(inplace=True), init_weights_elu, None),
+                         'resine': (nn.ReLU(inplace=True), Sine(), sine_init, init_weights_normal)}
 
-        nl, nl_weight_init, first_layer_init = nls_and_inits[nonlinearity]
+        first_nl, nl, nl_weight_init, first_layer_init = nls_and_inits[nonlinearity]
 
         if weight_init is not None:  # Overwrite weight init if passed
             self.weight_init = weight_init
@@ -64,7 +65,7 @@ class FCBlock(MetaModule):
 
         self.net = []
         self.net.append(MetaSequential(
-            BatchLinear(in_features, hidden_features), nl
+            BatchLinear(in_features, hidden_features), nl if first_nl is None else first_nl
         ))
 
         for i in range(num_hidden_layers):
@@ -83,7 +84,7 @@ class FCBlock(MetaModule):
         if self.weight_init is not None:
             self.net.apply(self.weight_init)
 
-        if first_layer_init is not None: # Apply special initialization to first layer, if applicable.
+        if first_layer_init is not None:  # Apply special initialization to first layer, if applicable.
             self.net[0].apply(first_layer_init)
 
     def forward(self, coords, params=None, **kwargs):
@@ -221,6 +222,7 @@ class ImageDownsampling(nn.Module):
 
 class PosEncodingNeRF(nn.Module):
     '''Module to add positional encoding as in NeRF [Mildenhall et al. 2020].'''
+
     def __init__(self, in_features, sidelength=None, fn_samples=None, use_nyquist=True):
         super().__init__()
 
@@ -364,6 +366,7 @@ class ConvImgEncoder(nn.Module):
 class PartialConvImgEncoder(nn.Module):
     '''Adapted from https://github.com/NVIDIA/partialconv/blob/master/models/partialconv2d.py
     '''
+
     def __init__(self, channel, image_resolution):
         super().__init__()
 
@@ -393,7 +396,7 @@ class PartialConvImgEncoder(nn.Module):
     def forward(self, I):
         M_c = I.clone().detach()
         M_c = M_c > 0.
-        M_c = M_c[:,0,...]
+        M_c = M_c[:, 0, ...]
         M_c = M_c.unsqueeze(1)
         M_c = M_c.float()
 
@@ -413,6 +416,7 @@ class PartialConvImgEncoder(nn.Module):
 
 class Conv2dResBlock(nn.Module):
     '''Aadapted from https://github.com/makora9143/pytorch-convcnp/blob/master/convcnp/modules/resblock.py'''
+
     def __init__(self, in_channel, out_channel=128):
         super().__init__()
         self.convs = nn.Sequential(
@@ -454,11 +458,13 @@ class PartialConv2d(nn.Conv2d):
         super(PartialConv2d, self).__init__(*args, **kwargs)
 
         if self.multi_channel:
-            self.weight_maskUpdater = torch.ones(self.out_channels, self.in_channels, self.kernel_size[0], self.kernel_size[1])
+            self.weight_maskUpdater = torch.ones(self.out_channels, self.in_channels, self.kernel_size[0],
+                                                 self.kernel_size[1])
         else:
             self.weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0], self.kernel_size[1])
 
-        self.slide_winsize = self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2] * self.weight_maskUpdater.shape[3]
+        self.slide_winsize = self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2] * \
+                             self.weight_maskUpdater.shape[3]
 
         self.last_size = (None, None, None, None)
         self.update_mask = None
@@ -476,13 +482,15 @@ class PartialConv2d(nn.Conv2d):
                 if mask_in is None:
                     # if mask is not provided, create a mask
                     if self.multi_channel:
-                        mask = torch.ones(input.data.shape[0], input.data.shape[1], input.data.shape[2], input.data.shape[3]).to(input)
+                        mask = torch.ones(input.data.shape[0], input.data.shape[1], input.data.shape[2],
+                                          input.data.shape[3]).to(input)
                     else:
                         mask = torch.ones(1, 1, input.data.shape[2], input.data.shape[3]).to(input)
                 else:
                     mask = mask_in
 
-                self.update_mask = F.conv2d(mask, self.weight_maskUpdater, bias=None, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=1)
+                self.update_mask = F.conv2d(mask, self.weight_maskUpdater, bias=None, stride=self.stride,
+                                            padding=self.padding, dilation=self.dilation, groups=1)
 
                 # for mixed precision training, change 1e-8 to 1e-6
                 self.mask_ratio = self.slide_winsize / (self.update_mask + 1e-8)
