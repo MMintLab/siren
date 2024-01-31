@@ -40,6 +40,19 @@ def get_mgrid(sidelen, dim=2):
     return pixel_coords
 
 
+def get_mgrid_box(sidelen, dim=2, offset=[[0.25, 0.37], [0.38, 0.5]]):
+    pixel_coords = np.stack(np.mgrid[:sidelen[0], :sidelen[1]], axis=-1)[None, ...].astype(np.float32)
+    pixel_coords[0, :, :, 0] = (pixel_coords[0, :, :, 0] / (sidelen[0] - 1)) * (offset[0][1] - offset[0][0]) + \
+                               offset[0][0]
+    pixel_coords[0, :, :, 1] = (pixel_coords[0, :, :, 1] / (sidelen[1] - 1)) * (offset[1][1] - offset[1][0]) + \
+                               offset[1][0]
+
+    pixel_coords -= 0.5
+    pixel_coords *= 2.
+    pixel_coords = torch.Tensor(pixel_coords).view(-1, dim)
+    return pixel_coords
+
+
 def lin2img(tensor, image_resolution=None):
     batch_size, num_samples, channels = tensor.shape
     if image_resolution is None:
@@ -384,7 +397,8 @@ class WaveSource(Dataset):
             self.counter = 0
 
         return {'coords': coords}, {'source_boundary_values': boundary_values, 'dirichlet_mask': dirichlet_mask,
-                                    'squared_slowness': squared_slowness, 'squared_slowness_grid': squared_slowness_grid}
+                                    'squared_slowness': squared_slowness,
+                                    'squared_slowness_grid': squared_slowness_grid}
 
 
 class PointCloud(Dataset):
@@ -590,6 +604,7 @@ class Implicit2DWrapper(torch.utils.data.Dataset):
         self.compute_diff = compute_diff
         self.dataset = dataset
         self.mgrid = get_mgrid(sidelength)
+        self.mgrid_upsample = get_mgrid_box(sidelength)
 
     def __len__(self):
         return len(self.dataset)
@@ -611,7 +626,7 @@ class Implicit2DWrapper(torch.utils.data.Dataset):
 
         img = img.permute(1, 2, 0).view(-1, self.dataset.img_channels)
 
-        in_dict = {'idx': idx, 'coords': self.mgrid}
+        in_dict = {'idx': idx, 'coords': self.mgrid, 'coords_upsample': self.mgrid_upsample}
         gt_dict = {'img': img}
 
         if self.compute_diff == 'gradients':
@@ -742,7 +757,6 @@ class ImageGeneralizationWrapper(torch.utils.data.Dataset):
         spatial_img, img, gt_dict = self.dataset.get_item_small(idx)
         in_dict = self.get_generalization_in_dict(spatial_img, img, idx)
         return in_dict, gt_dict
-
 
 
 # in_folder: where to find the data (train, val, test)

@@ -158,7 +158,12 @@ class SingleBVPNet(MetaModule):
             coords = self.positional_encoding(coords)
 
         output = self.net(coords, get_subdict(params, 'net'))
-        return {'model_in': coords_org, 'model_out': output}
+
+        # Compute upsampled output for visualization.
+        coords_up = model_input['coords_upsample'].clone().detach().requires_grad_(True)
+        output_up = self.net(coords_up, get_subdict(params, 'net'))
+
+        return {'model_in': coords_org, 'model_out': output, 'model_in_up': coords_up, 'model_out_up': output_up}
 
     def forward_with_activations(self, model_input):
         '''Returns not only model output, but also intermediate activations.'''
